@@ -13,32 +13,48 @@ SimSearcher::~SimSearcher()
 
 int SimSearcher::createIndex(const char *filename, unsigned q)
 {
+	qgram_length = q;
 	char buf[1024];
 	FILE* f = fopen(filename,"r");
-	int line = 1;
+	lineCount = 0;
+	minLen = 1024;
 	while(fgets(buf,1024,f) != NULL){
 		//printf("%s", buf);
 		int len = strlen(buf)-1;
+		strLenList.push_back(len);
 		string edKey;
 		string jaccardKey;
 		string str(buf);
 		str = str.substr(0,len);
 		for(int i = 0;i < len-q+1;i++){
 			edKey = str.substr(i,3);
-			edIndex[edKey].push_back(line);
+			if(edIndex[edKey].empty())
+				edIndex[edKey].push_back(lineCount);
+			else if(edIndex[edKey].back() != lineCount)
+				edIndex[edKey].push_back(lineCount);
 		}
+		dataStr.push_back(str);
 		str = str+" ";
+		int lineLen = 0;
 		for(int i = 0;i < len+1;i++){
 			int pos = str.find(" ",i);
 			if(pos < len+1){
 				jaccardKey = str.substr(i,pos-i);
-				jaccardIndex[jaccardKey].push_back(line);
+				lineLen += 1;
+				if(jaccardIndex[jaccardKey].empty())
+					jaccardIndex[jaccardKey].push_back(lineCount);
+				else if(jaccardIndex[jaccardKey].back() != lineCount)
+					jaccardIndex[jaccardKey].push_back(lineCount);
 				i = pos;
 			}
 		}
-		line ++;
+		if(minLen > lineLen){
+			minLen = lineLen;
+		}
+		lineCount ++;		
 	}
-	map<string,vector<int>>::iterator ite;
+	printIndex(jaccardIndex);
+/*	map<string,vector<int>>::iterator ite;
 	for(ite = edIndex.begin();ite!=edIndex.end();ite++){
 		edSortedList.push_back(Index(ite->first,(ite->second).size()));
 	}
@@ -46,7 +62,8 @@ int SimSearcher::createIndex(const char *filename, unsigned q)
 		jaccardSortedList.push_back(Index(ite->first,(ite->second).size()));
 	}
 	sort(edSortedList.begin(),edSortedList.end(),SortFunc);
-	sort(jaccardSortedList.begin(),jaccardSortedList.end(),SortFunc);
+	sort(jaccardSortedList.begin(),jaccardSortedList.end(),SortFunc);*/
+	printIndex(edIndex);
 /*	for(int i = 0;i < edSortedList.size();i++){
 		cout<<edIndex[edSortedList[i].name].size()<<endl;
 	}*/
@@ -55,12 +72,113 @@ int SimSearcher::createIndex(const char *filename, unsigned q)
 
 int SimSearcher::searchJaccard(const char *query, double threshold, vector<pair<unsigned, double> > &result)
 {
+	std::vector<string> queryList;
+	string queryStr(query);
+	queryStr = queryStr+" ";
+	int len = strlen(query)+1;
+	for(int i = 0;i < len;i++){
+		int pos = queryStr.find(" ",i);
+		if(pos < len){
+			queryList.push_back(queryStr.substr(i,pos-i));
+			i = pos;
+		}
+	}
+	int qlen = queryList.size();
+	double x1 = jaccardThreshold*qlen;
+	double x2 = (qlen+minLen)*jaccardThreshold/(1+jaccardThreshold);
+	int T = x1>x2? floor(x1):floor(x2);
+	int longLen = T/(ulogM+1);
 	result.clear();
 	return SUCCESS;
 }
 
 int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<unsigned, unsigned> > &result)
 {
+	std::vector<string> queryList;
+	int len = strlen(query);
+	string queryStr(query);
+	std::vector<Index> sortedList;
+	for(int i = 0;i < len-qgram_length+1;i++){
+		string str = queryStr.substr(i,3);
+		queryList.push_back(str);		
+		map<string,vector<int>>::iterator ite = edIndex.find(str);
+		if(ite != edIndex.end()){
+			sortedList.push_back(Index(str,(ite->second).size()));			
+		}
+	}
+	int bias = -qgram_length+1-threshold*qgram_length;
+	int T = strlen(query)+bias;
+	if(T <= 0){//scan all
+		for(int i = 0;i < lineCount;i++){
+			int edResult = GetED((dataStr[i]).c_str(),query,threshold);
+			if(edResult <= threshold){//scan result
+				cout<<i<<","<<edResult<<endl;
+				result.push_back(pair<unsigned,unsigned>(i,edResult));
+			}
+		}
+		return SUCCESS;
+	}
+	//scan/merge 
+	std::vector<int> shortCandidate;
+	std::vector<int> finalCandidate;
+	sort(sortedList.begin(),sortedList.end(),SortFunc);
+	int longLen = T/(ulogM+1);
+	int shortLen = sortedList.size()-longLen;
+	int shortT = T-longLen;//shortCandidate must appear more than that
+	std::vector<int> pList(sortedList.size());//current index when mergeskiping
+	for(int i = 0;i < sortedList.size();i++){
+		pList.push_back(1);
+	}
+	std::vector<HeapEle> heap;
+	for(int i = 0;i < shortLen;i++){
+		int index = i+longLen;
+		//cout<<index<<endl;
+		heap.push_back(HeapEle(index,(edIndex[sortedList[index].name])[0]));
+	}
+	//cout<<"test"<<endl;
+	make_heap(heap.begin(),heap.end(),SortFuncForHeap);
+	while(!heap.empty()){
+		int popCount = 0;
+		int popEle = (heap[0]).ele;
+		std::vector<int> popedList;
+		while(heap[0].ele == popEle){
+			pop_heap(heap.begin(),heap.end(),SortFuncForHeap);
+			popedList.push_back((heap.back()).index);
+			heap.pop_back();
+			popCount++;
+		}
+		if(popCount >= shortT){
+			shortCandidate.push_back(popEle);
+			vector<int>::iterator i;
+			for(i = popedList.begin();i != popedList.end();i++){
+				if(pList[*i]<sortedList[(*i)].length){//list have sth to pop
+					heap.push_back(HeapEle((*i),(edIndex[sortedList[*i].name])[pList[*i]]));
+					push_heap(heap.begin(),heap.end(),SortFuncForHeap);
+					pList[*i]++;
+				}
+			}
+		}
+		else{
+			int p = shortT-1-popCount;
+			for(int i = 0;i < p;i++){
+				pop_heap(heap.begin(),heap.end(),SortFuncForHeap);
+				popedList.push_back((heap.back()).index);
+				heap.pop_back();
+			}
+			HeapEle top = heap[0];
+			vector<int>::iterator i;
+			for(i = popedList.begin();i != popedList.end();i++){
+				if(pList[*i]<sortedList[(*i)].length){
+					int loc = FindFirstGreater(edIndex[sortedList[*i].name],top.ele);
+					if(loc > 0)
+						pList[*i] = loc;
+					heap.push_back(HeapEle((*i),(edIndex[sortedList[*i].name])[pList[*i]]));
+					push_heap(heap.begin(),heap.end(),SortFuncForHeap);
+					pList[*i]++;
+				}
+			}			
+		}
+	}
 	result.clear();
 	return SUCCESS;
 }
@@ -78,4 +196,55 @@ void SimSearcher::printIndex(map<string,vector<int>> mMap){
 
 bool SortFunc(Index a,Index b){
 	return (a.length > b.length);
+}
+
+bool SortFuncForHeap(HeapEle a,HeapEle b){
+	return (a.ele > b.ele);
+}
+
+int GetED(const char *s1,const char *s2,int threshold){
+	int len1 = strlen(s1);
+	int len2 = strlen(s2);
+	int** d=new int*[len1+1];
+	int i,j;
+   	for(int k=0;k<=len1;k++)  
+        d[k]=new int[len2+1];
+    for(i = 0;i <= len1;i++)     
+        d[i][0] = i;     
+    for(j = 0;j <= len2;j++)     
+        d[0][j] = j;
+	for(i = 1;i <= len1;i++)     
+        for(j = 1;j <= len2;j++)  
+        {     
+            int cost = s1[i] == s2[j] ? 0 : 1;     
+            int deletion = d[i-1][j] + 1;     
+            int insertion = d[i][j-1] + 1;     
+            int substitution = d[i-1][j-1] + cost;     
+            d[i][j] = min(deletion,insertion,substitution);     
+        }
+    int result = d[len1][len2];
+    for(int k=0;i<=len1;k++)  
+        delete[] d[k];
+    delete[] d;
+    return result;
+}
+
+int FindFirstGreater(std::vector<int> v,int comp){
+	if(comp > v.back())	return -1;
+	int low = 0;
+	int high = v.size()-1;
+	int mid;
+    while(low <= high)
+    {
+        mid = (low+high)/2;
+        if(comp > v[mid])
+            low = mid+1;
+        else
+            high = mid-1;
+    }
+    return high;
+}
+int min(int a,int b,int c) {     
+    int t = a < b ? a : b;     
+    return t < c ? t : c;     
 }
