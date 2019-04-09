@@ -32,7 +32,7 @@ int SimSearcher::createIndex(const char *filename, unsigned q)
 		string str(buf);
 		str = str.substr(0,len);
 		for(int i = 0;i < len-q+1;i++){
-			edKey = str.substr(i,3);
+			edKey = str.substr(i,q);
 			if(edIndex[edKey].empty())
 				edIndex[edKey].push_back(lineCount);
 			else if(edIndex[edKey].back() != lineCount)
@@ -215,7 +215,7 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 	int qgramCount = len-qgram_length+1;
 	sortedList.reserve(qgramCount);
 	for(int i = 0;i < qgramCount;i++){
-		string str = queryStr.substr(i,3);
+		string str = queryStr.substr(i,qgram_length);
 		queryList.push_back(str);		
 		map<string,vector<int>>::iterator ite = edIndex.find(str);
 		if(ite != edIndex.end()){
@@ -224,7 +224,7 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 	}
 	int bias = -qgram_length+1-threshold*qgram_length;
 	int T = strlen(query)+bias;
-	int edResult;
+	unsigned edResult;
 	int longLen = T/(ulogM+1);
 	int shortLen = sortedList.size()-longLen;
 	int shortT = T-longLen;//candidate must appear more than that
@@ -407,7 +407,7 @@ bool SortFuncForHeap(HeapEle a,HeapEle b){
 int mAbs(int a){
 	return a>0?a:-a;
 }
-int GetED(const char *s1,const char *s2,int threshold,int len1,int len2){
+unsigned GetED(const char *s1,const char *s2,int threshold,int len1,int len2){
 	if(len2-len1 > threshold) return threshold+1;//impossible
 	int d[len1+1][len2+1];
     int i,j;

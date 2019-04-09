@@ -35,7 +35,7 @@ struct HeapEle
 
 bool SortFunc(Index a,Index b);
 bool SortFuncForHeap(HeapEle a,HeapEle b);
-int GetED(const char *s1,const char *s2,int threshold,int len1,int len2);
+unsigned GetED(const char *s1,const char *s2,int threshold,int len1,int len2);
 int GetEDVolient(const char *s1,const char *s2,int threshold,int len1,int len2);
 int GetJaccard(vector<string> a,vector<string> b);
 int min(int a,int b,int c);
