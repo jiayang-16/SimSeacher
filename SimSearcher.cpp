@@ -203,10 +203,13 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 {
 	result.clear();
 	std::vector<string> queryList;
+	queryList.reserve(1024);
 	int len = strlen(query);
 	string queryStr(query);
 	std::vector<Index> sortedList;
-	for(int i = 0;i < len-qgram_length+1;i++){
+	int qgramCount = len-qgram_length+1;
+	sortedList.reserve(qgramCount);
+	for(int i = 0;i < qgramCount;i++){
 		string str = queryStr.substr(i,3);
 		queryList.push_back(str);		
 		map<string,vector<int>>::iterator ite = edIndex.find(str);
@@ -228,6 +231,7 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 	}
 	//scan/merge 
 	std::vector<pair<int,int>> candidate;
+	candidate.reserve(128);
 	//std::vector<pair<int,int>> finalCandidate;
 	sort(sortedList.begin(),sortedList.end(),SortFunc);
 	//printEdSortedList(sortedList);
@@ -236,10 +240,12 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 	int shortLen = sortedList.size()-longLen;
 	int shortT = T-longLen;//candidate must appear more than that
 	std::vector<int> pList;//current index when mergeskiping
+	pList.reserve(sortedList.size());
 	for(int i = 0;i < sortedList.size();i++){
 		pList.push_back(1);
 	}
 	std::vector<HeapEle> heap;
+	heap.reserve(1024);
 	for(int i = 0;i < shortLen;i++){
 		int index = i+longLen;
 		//cout<<index<<endl;
@@ -251,6 +257,7 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 		int popEle = (heap[0]).ele;
 		//printf("heap top %d\n", popEle);
 		std::vector<int> popedList;
+		popedList.reserve(sortedList.size());
 /*		for(int i = 0;i < sortedList.size();i++){
 			cout<<pList[i]<<" ";
 		}
@@ -316,9 +323,15 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 			}
 		}
 	}
+	int edResult;
 	for(candIter = candidate.begin();candIter != candidate.end();candIter++){
 		if((*candIter).second >= T){
-			int edResult = GetED(dataStr[(*candIter).first].c_str(),query,threshold);
+			int dataLen = dataStr[(*candIter).first].size();
+			if(dataLen <= len)
+				edResult = GetED(dataStr[(*candIter).first].c_str(),query,threshold,dataLen,len);
+			else{
+				edResult = GetED(query,dataStr[(*candIter).first].c_str(),threshold,len,dataLen);
+			}
 			if(edResult <= threshold){//scan result
 				//cout<<(*candIter).first<<","<<edResult<<endl;
 				result.push_back(pair<unsigned,unsigned>((*candIter).first,edResult));
@@ -375,26 +388,40 @@ bool SortFuncForHeap(HeapEle a,HeapEle b){
 	return (a.ele > b.ele);
 }
 
-int GetED(const char *s1,const char *s2,int threshold){
+int GetED(const char *s1,const char *s2,int threshold,int len1,int len2){
 	//cout<<s1<<endl;
-	int len1 = strlen(s1);
-	int len2 = strlen(s2);
 	int** d=new int*[len1+1];
 	int i,j;
    	for(int k=0;k<=len1;k++)  
         d[k]=new int[len2+1];
-    for(i = 0;i <= len1;i++)     
+    for(i = 0;i <= threshold;i++)     
         d[i][0] = i;     
-    for(j = 0;j <= len2;j++)     
+    for(j = 0;j <= threshold;j++)     
         d[0][j] = j;
-	for(i = 1;i <= len1;i++)     
-        for(j = 1;j <= len2;j++)  
-        {     
+    int width = 2*threshold+1;
+	for(i = 1;i <= len1;i++)
+		j = i-threshold-1;
+		if(j > 0){
+			int cost = s1[i-1] == s2[j-1]?0:1;
+			int deletion = d[i-1][j]+1;
+			int substitution = d[i-1][j-1]+cost;
+			d[i][j] = deletion<substitution?deletion:substitution;     
+		}
+        for(j = i-threshold+1;j < i+threshold;j++)  
+        {   
+        	if(j <= 0) continue;  
             int cost = s1[i-1] == s2[j-1] ? 0 : 1;     
             int deletion = d[i-1][j] + 1;     
             int insertion = d[i][j-1] + 1;     
             int substitution = d[i-1][j-1] + cost;     
             d[i][j] = min(deletion,insertion,substitution);     
+        }
+        j = i+threshold;
+        if(j <= len2){
+        	int cost = s1[i-1] == s2[j-1]?0:1;
+        	int insertion = d[i][j-1]+1;
+        	int substitution = d[i-1][j-1] + cost; 
+        	d[i][j] = insertion<substitution?insertion:substitution; 
         }
     int result = d[len1][len2];
     for(int k=0;i<=len1;k++)  
