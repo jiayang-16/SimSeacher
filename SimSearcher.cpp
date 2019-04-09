@@ -40,20 +40,24 @@ int SimSearcher::createIndex(const char *filename, unsigned q)
 			int pos = str.find(" ",i);
 			if(pos < len+1){
 				jaccardKey = str.substr(i,pos-i);
-				lineLen += 1;
-				if(jaccardIndex[jaccardKey].empty())
+				if(jaccardIndex[jaccardKey].empty()){
 					jaccardIndex[jaccardKey].push_back(lineCount);
-				else if(jaccardIndex[jaccardKey].back() != lineCount)
+					lineLen += 1;
+				}
+				else if(jaccardIndex[jaccardKey].back() != lineCount){
 					jaccardIndex[jaccardKey].push_back(lineCount);
+					lineLen += 1;					
+				}
 				i = pos;
 			}
 		}
 		if(minLen > lineLen){
 			minLen = lineLen;
 		}
+		dataStrCount.push_back(lineLen);
 		lineCount ++;		
 	}
-	printIndex(jaccardIndex);
+	//printIndex(jaccardIndex);
 /*	map<string,vector<int>>::iterator ite;
 	for(ite = edIndex.begin();ite!=edIndex.end();ite++){
 		edSortedList.push_back(Index(ite->first,(ite->second).size()));
@@ -63,7 +67,7 @@ int SimSearcher::createIndex(const char *filename, unsigned q)
 	}
 	sort(edSortedList.begin(),edSortedList.end(),SortFunc);
 	sort(jaccardSortedList.begin(),jaccardSortedList.end(),SortFunc);*/
-	printIndex(edIndex);
+	//printIndex(edIndex);
 /*	for(int i = 0;i < edSortedList.size();i++){
 		cout<<edIndex[edSortedList[i].name].size()<<endl;
 	}*/
@@ -72,28 +76,132 @@ int SimSearcher::createIndex(const char *filename, unsigned q)
 
 int SimSearcher::searchJaccard(const char *query, double threshold, vector<pair<unsigned, double> > &result)
 {
-	std::vector<string> queryList;
+	result.clear();
+	set<string> queryList;
 	string queryStr(query);
 	queryStr = queryStr+" ";
 	int len = strlen(query)+1;
+	std::vector<Index> sortedList;
 	for(int i = 0;i < len;i++){
 		int pos = queryStr.find(" ",i);
-		if(pos < len){
-			queryList.push_back(queryStr.substr(i,pos-i));
+		if(pos < len && pos != i){
+			queryList.insert(queryStr.substr(i,pos-i));
 			i = pos;
 		}
 	}
+	for(set<string>::iterator i = queryList.begin();i != queryList.end();i++){
+		map<string,vector<int>>::iterator ite = jaccardIndex.find(*i);
+		if(ite != jaccardIndex.end())
+			sortedList.push_back(Index(*i,(ite->second).size()));
+	}
+	sort(sortedList.begin(),sortedList.end(),SortFunc);
+	//printJaccardSortedList(sortedList);
 	int qlen = queryList.size();
-	double x1 = jaccardThreshold*qlen;
-	double x2 = (qlen+minLen)*jaccardThreshold/(1+jaccardThreshold);
+	double x1 = threshold*qlen;
+	double x2 = (qlen+minLen)*threshold/(1+threshold);
 	int T = x1>x2? floor(x1):floor(x2);
+	//cout<<"T:"<<T<<endl;
 	int longLen = T/(ulogM+1);
-	result.clear();
+	int shortLen = sortedList.size()-longLen;
+
+	int shortT = T-longLen;//candidate must appear more than that
+	std::vector<int> pList;//current index when mergeskiping
+	for(int i = 0;i < sortedList.size();i++){
+		pList.push_back(1);
+	}
+	std::vector<HeapEle> heap;
+	for(int i = 0;i < shortLen;i++){
+		int index = i+longLen;
+		//cout<<index<<endl;
+		heap.push_back(HeapEle(index,(jaccardIndex[sortedList[index].name])[0]));
+	}
+	make_heap(heap.begin(),heap.end(),SortFuncForHeap);
+	std::vector<pair<int,int>> candidate;
+	while(!heap.empty()){
+		int popCount = 0;
+		int popEle = (heap[0]).ele;
+		//printf("heap top %d\n", popEle);
+		std::vector<int> popedList;
+/*		for(int i = 0;i < sortedList.size();i++){
+			cout<<pList[i]<<" ";
+		}
+		cout<<endl;
+		cout<<"heap:";
+		for(int i = 0;i < heap.size();i++){
+			cout<<heap[i].ele<<" ";
+		}
+		cout<<endl;*/
+		while(heap[0].ele == popEle){
+			pop_heap(heap.begin(),heap.end(),SortFuncForHeap);
+			popedList.push_back((heap.back()).index);
+			heap.pop_back();
+			popCount++;
+			if(heap.empty()) break;
+			//printf("pop\n");
+		}
+		if(popCount >= shortT){
+			//printf("get result %d popCount %d\n", popEle,popCount);
+			candidate.push_back(pair<int,int>(popEle,popCount));
+			vector<int>::iterator i;
+			for(i = popedList.begin();i != popedList.end();i++){
+				if(pList[*i]<sortedList[(*i)].length){//list have sth to pop
+					heap.push_back(HeapEle((*i),(jaccardIndex[sortedList[*i].name])[pList[*i]]));
+					push_heap(heap.begin(),heap.end(),SortFuncForHeap);
+					pList[*i]++;
+				}
+			}
+		}
+		else{
+			int p = shortT-1-popCount;
+			//printf("not enough p:%d\n",p);
+			for(int i = 0;i < p;i++){
+				pop_heap(heap.begin(),heap.end(),SortFuncForHeap);
+				popedList.push_back((heap.back()).index);
+				heap.pop_back();
+			}
+			HeapEle top = heap[0];
+			vector<int>::iterator i;
+			//cout<<"find:compare to "<<top.ele<<" ";
+			for(i = popedList.begin();i != popedList.end();i++){
+				int loc = FindFirstGreater(jaccardIndex[sortedList[*i].name],top.ele);
+				//cout<<loc<<" ";
+				if(loc > 0)
+					pList[*i] = loc;
+				heap.push_back(HeapEle((*i),(jaccardIndex[sortedList[*i].name])[pList[*i]]));
+				push_heap(heap.begin(),heap.end(),SortFuncForHeap);
+				pList[*i]++;
+			}
+			//cout<<endl;			
+		}
+	}
+	if(!candidate.empty()){
+/*		for(int i = 0;i < candidate.size();i++){
+			cout<<candidate[i].first<<" "<<candidate[i].second<<endl;
+		}*/
+	}
+	vector<pair<int,int>>::iterator candIter;
+	for(candIter = candidate.begin();candIter != candidate.end();candIter++){
+		for(int j = 0;j < longLen;j++){
+			if(binarySearch(jaccardIndex[sortedList[j].name],(*candIter).first)){
+				(*candIter).second += 1;
+			}
+		}
+	}
+	for(candIter = candidate.begin();candIter != candidate.end();candIter++){
+		if((*candIter).second >= T){
+			double jaccardResult = (double)((*candIter).second)/(queryList.size()+dataStrCount[(*candIter).first]-(*candIter).second);
+			if(jaccardResult >= threshold){//scan result
+				cout<<(*candIter).first<<","<<jaccardResult<<endl;
+				result.push_back(pair<unsigned,unsigned>((*candIter).first,jaccardResult));
+			}
+		}
+	}
 	return SUCCESS;
 }
 
 int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<unsigned, unsigned> > &result)
 {
+	result.clear();
 	std::vector<string> queryList;
 	int len = strlen(query);
 	string queryStr(query);
@@ -119,13 +227,15 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 		return SUCCESS;
 	}
 	//scan/merge 
-	std::vector<int> shortCandidate;
-	std::vector<int> finalCandidate;
+	std::vector<pair<int,int>> candidate;
+	//std::vector<pair<int,int>> finalCandidate;
 	sort(sortedList.begin(),sortedList.end(),SortFunc);
+	//printEdSortedList(sortedList);
+
 	int longLen = T/(ulogM+1);
 	int shortLen = sortedList.size()-longLen;
-	int shortT = T-longLen;//shortCandidate must appear more than that
-	std::vector<int> pList(sortedList.size());//current index when mergeskiping
+	int shortT = T-longLen;//candidate must appear more than that
+	std::vector<int> pList;//current index when mergeskiping
 	for(int i = 0;i < sortedList.size();i++){
 		pList.push_back(1);
 	}
@@ -135,20 +245,32 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 		//cout<<index<<endl;
 		heap.push_back(HeapEle(index,(edIndex[sortedList[index].name])[0]));
 	}
-	//cout<<"test"<<endl;
 	make_heap(heap.begin(),heap.end(),SortFuncForHeap);
 	while(!heap.empty()){
 		int popCount = 0;
 		int popEle = (heap[0]).ele;
+		//printf("heap top %d\n", popEle);
 		std::vector<int> popedList;
+/*		for(int i = 0;i < sortedList.size();i++){
+			cout<<pList[i]<<" ";
+		}
+		cout<<endl;
+		cout<<"heap:";
+		for(int i = 0;i < heap.size();i++){
+			cout<<heap[i].ele<<" ";
+		}
+		cout<<endl;*/
 		while(heap[0].ele == popEle){
 			pop_heap(heap.begin(),heap.end(),SortFuncForHeap);
 			popedList.push_back((heap.back()).index);
 			heap.pop_back();
 			popCount++;
+			if(heap.empty()) break;
+			//printf("pop\n");
 		}
 		if(popCount >= shortT){
-			shortCandidate.push_back(popEle);
+			//printf("get result %d popCount %d\n", popEle,popCount);
+			candidate.push_back(pair<int,int>(popEle,popCount));
 			vector<int>::iterator i;
 			for(i = popedList.begin();i != popedList.end();i++){
 				if(pList[*i]<sortedList[(*i)].length){//list have sth to pop
@@ -160,6 +282,7 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 		}
 		else{
 			int p = shortT-1-popCount;
+			//printf("not enough p:%d\n",p);
 			for(int i = 0;i < p;i++){
 				pop_heap(heap.begin(),heap.end(),SortFuncForHeap);
 				popedList.push_back((heap.back()).index);
@@ -167,19 +290,41 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 			}
 			HeapEle top = heap[0];
 			vector<int>::iterator i;
+			//cout<<"find:compare to "<<top.ele<<" ";
 			for(i = popedList.begin();i != popedList.end();i++){
-				if(pList[*i]<sortedList[(*i)].length){
-					int loc = FindFirstGreater(edIndex[sortedList[*i].name],top.ele);
-					if(loc > 0)
-						pList[*i] = loc;
-					heap.push_back(HeapEle((*i),(edIndex[sortedList[*i].name])[pList[*i]]));
-					push_heap(heap.begin(),heap.end(),SortFuncForHeap);
-					pList[*i]++;
-				}
-			}			
+				int loc = FindFirstGreater(edIndex[sortedList[*i].name],top.ele);
+				//cout<<loc<<" ";
+				if(loc > 0)
+					pList[*i] = loc;
+				heap.push_back(HeapEle((*i),(edIndex[sortedList[*i].name])[pList[*i]]));
+				push_heap(heap.begin(),heap.end(),SortFuncForHeap);
+				pList[*i]++;
+			}
+			//cout<<endl;			
 		}
 	}
-	result.clear();
+	if(!candidate.empty()){
+/*		for(int i = 0;i < candidate.size();i++){
+			cout<<candidate[i].first<<" "<<candidate[i].second<<endl;
+		}*/
+	}
+	vector<pair<int,int>>::iterator candIter;
+	for(candIter = candidate.begin();candIter != candidate.end();candIter++){
+		for(int j = 0;j < longLen;j++){
+			if(binarySearch(edIndex[sortedList[j].name],(*candIter).first)){
+				(*candIter).second += 1;
+			}
+		}
+	}
+	for(candIter = candidate.begin();candIter != candidate.end();candIter++){
+		if((*candIter).second >= T){
+			int edResult = GetED(dataStr[(*candIter).first].c_str(),query,threshold);
+			if(edResult <= threshold){//scan result
+				cout<<(*candIter).first<<","<<edResult<<endl;
+				result.push_back(pair<unsigned,unsigned>((*candIter).first,edResult));
+			}
+		}
+	}
 	return SUCCESS;
 }
 
@@ -194,6 +339,34 @@ void SimSearcher::printIndex(map<string,vector<int>> mMap){
 	}
 }
 
+void SimSearcher::printEdSortedList(std::vector<Index> sortedList){
+	vector<Index>::iterator i;
+	cout<<"sortedList:"<<endl;
+	for(i = sortedList.begin();i != sortedList.end();i++){
+		cout<<"key:"<<(*i).name<<" ";
+		vector<int>::iterator j;
+		vector<int> list = edIndex[(*i).name];
+		for(j = list.begin();j != list.end();j++){
+			cout<<(*j)<<" ";
+		}
+		cout<<endl;
+	}
+}
+
+void SimSearcher::printJaccardSortedList(std::vector<Index> sortedList){
+	vector<Index>::iterator i;
+	cout<<"sortedList:"<<endl;
+	for(i = sortedList.begin();i != sortedList.end();i++){
+		cout<<"key:"<<(*i).name<<" ";
+		vector<int>::iterator j;
+		vector<int> list = jaccardIndex[(*i).name];
+		for(j = list.begin();j != list.end();j++){
+			cout<<(*j)<<" ";
+		}
+		cout<<endl;
+	}
+}
+
 bool SortFunc(Index a,Index b){
 	return (a.length > b.length);
 }
@@ -203,6 +376,7 @@ bool SortFuncForHeap(HeapEle a,HeapEle b){
 }
 
 int GetED(const char *s1,const char *s2,int threshold){
+	//cout<<s1<<endl;
 	int len1 = strlen(s1);
 	int len2 = strlen(s2);
 	int** d=new int*[len1+1];
@@ -216,7 +390,7 @@ int GetED(const char *s1,const char *s2,int threshold){
 	for(i = 1;i <= len1;i++)     
         for(j = 1;j <= len2;j++)  
         {     
-            int cost = s1[i] == s2[j] ? 0 : 1;     
+            int cost = s1[i-1] == s2[j-1] ? 0 : 1;     
             int deletion = d[i-1][j] + 1;     
             int insertion = d[i][j-1] + 1;     
             int substitution = d[i-1][j-1] + cost;     
@@ -227,6 +401,10 @@ int GetED(const char *s1,const char *s2,int threshold){
         delete[] d[k];
     delete[] d;
     return result;
+}
+
+int GetJaccard(vector<string> a,vector<string> b){
+
 }
 
 int FindFirstGreater(std::vector<int> v,int comp){
@@ -242,8 +420,26 @@ int FindFirstGreater(std::vector<int> v,int comp){
         else
             high = mid-1;
     }
-    return high;
+    return low;
 }
+
+bool binarySearch(std::vector<int> v,int comp){
+	int low = 0;
+	int high = v.size()-1;
+	int mid;
+    while(low <= high)
+    {
+        mid = (low+high)/2;
+        if(comp == v[mid])
+        	return true;
+        else if(comp > v[mid])
+            low = mid+1;
+        else
+            high = mid-1;
+    }
+    return false;
+}
+
 int min(int a,int b,int c) {     
     int t = a < b ? a : b;     
     return t < c ? t : c;     
