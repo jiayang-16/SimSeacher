@@ -191,7 +191,7 @@ int SimSearcher::searchJaccard(const char *query, double threshold, vector<pair<
 		if((*candIter).second >= T){
 			double jaccardResult = (double)((*candIter).second)/(queryList.size()+dataStrCount[(*candIter).first]-(*candIter).second);
 			if(jaccardResult >= threshold){//scan result
-				cout<<(*candIter).first<<","<<jaccardResult<<endl;
+				//cout<<(*candIter).first<<","<<jaccardResult<<endl;
 				result.push_back(pair<unsigned,unsigned>((*candIter).first,jaccardResult));
 			}
 		}
@@ -220,7 +220,7 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 		for(int i = 0;i < lineCount;i++){
 			int edResult = GetED((dataStr[i]).c_str(),query,threshold);
 			if(edResult <= threshold){//scan result
-				cout<<i<<","<<edResult<<endl;
+				//cout<<i<<","<<edResult<<endl;
 				result.push_back(pair<unsigned,unsigned>(i,edResult));
 			}
 		}
@@ -320,7 +320,7 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 		if((*candIter).second >= T){
 			int edResult = GetED(dataStr[(*candIter).first].c_str(),query,threshold);
 			if(edResult <= threshold){//scan result
-				cout<<(*candIter).first<<","<<edResult<<endl;
+				//cout<<(*candIter).first<<","<<edResult<<endl;
 				result.push_back(pair<unsigned,unsigned>((*candIter).first,edResult));
 			}
 		}
