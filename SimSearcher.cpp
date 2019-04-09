@@ -219,9 +219,15 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 	}
 	int bias = -qgram_length+1-threshold*qgram_length;
 	int T = strlen(query)+bias;
+	int edResult;
 	if(T <= 0){//scan all
 		for(int i = 0;i < lineCount;i++){
-			int edResult = GetED((dataStr[i]).c_str(),query,threshold);
+			int dataLen = dataStr[i].size();
+			if(dataLen <= len)
+				edResult = GetED(dataStr[i].c_str(),query,threshold,dataLen,len);
+			else{
+				edResult = GetED(query,dataStr[i].c_str(),threshold,len,dataLen);
+			}
 			if(edResult <= threshold){//scan result
 				//cout<<i<<","<<edResult<<endl;
 				result.push_back(pair<unsigned,unsigned>(i,edResult));
@@ -323,7 +329,6 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 			}
 		}
 	}
-	int edResult;
 	for(candIter = candidate.begin();candIter != candidate.end();candIter++){
 		if((*candIter).second >= T){
 			int dataLen = dataStr[(*candIter).first].size();
@@ -389,17 +394,17 @@ bool SortFuncForHeap(HeapEle a,HeapEle b){
 }
 
 int GetED(const char *s1,const char *s2,int threshold,int len1,int len2){
-	//cout<<s1<<endl;
+	if(len2-len1 > threshold) return threshold+1;//impossible
 	int** d=new int*[len1+1];
 	int i,j;
    	for(int k=0;k<=len1;k++)  
         d[k]=new int[len2+1];
-    for(i = 0;i <= threshold;i++)     
+    for(i = 0;i <= threshold && i <= len1;i++)     
         d[i][0] = i;     
-    for(j = 0;j <= threshold;j++)     
+    for(j = 0;j <= threshold && j <= len2;j++)     
         d[0][j] = j;
-    int width = 2*threshold+1;
-	for(i = 1;i <= len1;i++)
+    //printf("test\n");
+	for(i = 1;i <= len1;i++){
 		j = i-threshold-1;
 		if(j > 0){
 			int cost = s1[i-1] == s2[j-1]?0:1;
@@ -409,7 +414,8 @@ int GetED(const char *s1,const char *s2,int threshold,int len1,int len2){
 		}
         for(j = i-threshold+1;j < i+threshold;j++)  
         {   
-        	if(j <= 0) continue;  
+        	if(j <= 0) continue;
+        	if(j > len2) break;  
             int cost = s1[i-1] == s2[j-1] ? 0 : 1;     
             int deletion = d[i-1][j] + 1;     
             int insertion = d[i][j-1] + 1;     
@@ -423,6 +429,14 @@ int GetED(const char *s1,const char *s2,int threshold,int len1,int len2){
         	int substitution = d[i-1][j-1] + cost; 
         	d[i][j] = insertion<substitution?insertion:substitution; 
         }
+	}
+/*	for(i = 0;i <= len1;i++){
+		for(j = 0;j <= len2;j++){
+			cout<<d[i][j]<<" ";
+		}
+		cout<<endl;		
+	}*/
+
     int result = d[len1][len2];
     for(int k=0;i<=len1;k++)  
         delete[] d[k];

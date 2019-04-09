@@ -12,7 +12,7 @@ using namespace std;
 const int SUCCESS = 0;
 const int FAILURE = 1;
 
-#define edThreshold 6
+#define edThreshold 7
 #define jaccardThreshold 0.2
 #define ulogM 1
 struct Index
