@@ -220,7 +220,10 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 	int bias = -qgram_length+1-threshold*qgram_length;
 	int T = strlen(query)+bias;
 	int edResult;
-	if(T <= 0){//scan all
+	int longLen = T/(ulogM+1);
+	int shortLen = sortedList.size()-longLen;
+	int shortT = T-longLen;//candidate must appear more than that
+	if(T <= 0 || shortLen <= 0 || len <= qgram_length){//scan all
 		for(int i = 0;i < lineCount;i++){
 			int dataLen = dataStr[i].size();
 			if(dataLen <= len)
@@ -241,10 +244,6 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 	//std::vector<pair<int,int>> finalCandidate;
 	sort(sortedList.begin(),sortedList.end(),SortFunc);
 	//printEdSortedList(sortedList);
-
-	int longLen = T/(ulogM+1);
-	int shortLen = sortedList.size()-longLen;
-	int shortT = T-longLen;//candidate must appear more than that
 	std::vector<int> pList;//current index when mergeskiping
 	pList.reserve(sortedList.size());
 	for(int i = 0;i < sortedList.size();i++){
