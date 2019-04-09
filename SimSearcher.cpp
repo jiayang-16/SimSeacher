@@ -224,8 +224,11 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 	}
 	int bias = -qgram_length+1-threshold*qgram_length;
 	int T = strlen(query)+bias;
+	//T = 7;//test
 	unsigned edResult;
 	int longLen = T/(ulogM+1);
+	//cout<<longLen<<" "<<T<<endl;
+	//longLen = 5;//test
 	int shortLen = sortedList.size()-longLen;
 	int shortT = T-longLen;//candidate must appear more than that
 	if(T <= 0 || shortLen <= 0 || len <= qgram_length){//scan all
@@ -331,6 +334,10 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 	vector<int> finalCandidate;
 	finalCandidate.reserve(64);
 	for(candIter = candidate.begin();candIter != candidate.end();candIter++){
+		if((*candIter).second >= T){
+			finalCandidate.push_back((*candIter).first);
+			continue;		
+		}
 		for(int j = 0;j < longLen;j++){
 			if(binary_search(edIndex[sortedList[j].name].begin(),edIndex[sortedList[j].name].end(),(*candIter).first)){
 				(*candIter).second += 1;
@@ -350,7 +357,7 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 			edResult = GetED(query,dataStr[(*finalIte)].c_str(),threshold,len,dataLen);
 		}
 		if(edResult <= threshold){//scan result
-			//cout<<(*finalIte).first<<","<<edResult<<endl;
+			//cout<<(*finalIte)<<","<<edResult<<endl;
 			result.push_back(pair<unsigned,unsigned>((*finalIte),edResult));
 		}
 	}
