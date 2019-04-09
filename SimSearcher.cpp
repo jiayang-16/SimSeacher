@@ -2,7 +2,7 @@
 #include <cstdlib>
 
 using namespace std;
-
+const int M_MAX_INT = 0xffffff;
 SimSearcher::SimSearcher()
 {
 }
@@ -332,7 +332,7 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 	finalCandidate.reserve(64);
 	for(candIter = candidate.begin();candIter != candidate.end();candIter++){
 		for(int j = 0;j < longLen;j++){
-			if(binarySearch(edIndex[sortedList[j].name],(*candIter).first)){
+			if(binary_search(edIndex[sortedList[j].name].begin(),edIndex[sortedList[j].name].end(),(*candIter).first)){
 				(*candIter).second += 1;
 				if((*candIter).second >= T){
 					finalCandidate.push_back((*candIter).first);
@@ -404,31 +404,50 @@ bool SortFuncForHeap(HeapEle a,HeapEle b){
 	return (a.ele > b.ele);
 }
 
-int mAbs(int a){
+inline int mAbs(int a){
 	return a>0?a:-a;
 }
-unsigned GetED(const char *s1,const char *s2,int threshold,int len1,int len2){
-	if(len2-len1 > threshold) return threshold+1;//impossible
-	int d[len1+1][len2+1];
-    int i,j;
-    for(i = 0;i <= threshold && i <= len1;i++)     
-        d[i][0] = i;     
-    for(j = 0;j <= threshold && j <= len2;j++)     
-        d[0][j] = j;
-    //printf("test\n");
-	for(i = 1;i <= len1;i++){
-		int begin = i-threshold>1 ? i-threshold : 1;
-		int end = i+threshold<len2 ? i+threshold : len2;
-        for(j = begin;j <= end;j++)  
-        {  
-            int cost = s1[i-1] == s2[j-1] ? 0 : 1;     
-            int deletion = mAbs(i-1-j)>threshold?INT_MAX:d[i-1][j] + 1;     
-            int insertion = mAbs(i-j+1)>threshold?INT_MAX:d[i][j-1] + 1;
-            int substitution = d[i-1][j-1] + cost;     
-            d[i][j] = min(deletion,insertion,substitution);     
+inline int min(int a,int b){
+	return a<b?a:b;
+}
+inline int max(int a,int b){
+	return a>b?a:b;
+}
+inline int min_3(int x, int y, int z)
+{
+    return min(min(x, y), z);
+}
+unsigned GetED(const char *str1,const char *str2,unsigned threshold,int m,int n){
+	//cout<<s1<<s2<<threshold<<len1<<len2<<endl;
+    if (mAbs(m - n) > threshold)
+        return M_MAX_INT;
+    int dp[m+1][n+1];
+    for (int i = 0; i <= min(threshold, m); i++)
+    {
+        dp[i][0] = i;
+    }
+    for (int j = 0; j <= min(threshold, n); j++)
+    {
+        dp[0][j] = j;
+    }
+    for (int i = 1; i <= m; i++)
+    {
+        int begin = max(i - threshold, 1);
+        int end = min(i + threshold, n);
+        if (begin > end)
+            break;
+        for (int j = begin; j <= end; j++)
+        {
+            int t = !(str1[i - 1] == str2[j - 1]);
+            int d1 = mAbs(i - 1 - j) > threshold ? M_MAX_INT : dp[i - 1][j];
+            int d2 = mAbs(i - j + 1) > threshold ? M_MAX_INT : dp[i][j - 1];
+            dp[i][j] = min_3(
+                d1 + 1,
+                d2 + 1,
+                dp[i - 1][j - 1] + t);
         }
-	}
-    return d[len1][len2];
+    }
+    return dp[m][n];
 }
 
 int GetJaccard(vector<string> a,vector<string> b){
@@ -468,7 +487,3 @@ bool binarySearch(std::vector<int> v,int comp){
     return false;
 }
 
-int min(int a,int b,int c) {     
-    int t = a < b ? a : b;     
-    return t < c ? t : c;     
-}

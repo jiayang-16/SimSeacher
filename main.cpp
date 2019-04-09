@@ -11,8 +11,8 @@ int main(int argc, char **argv)
 	int q = 3;
 
 	searcher.createIndex(argv[1], q);
-	searcher.searchJaccard("query", 0.2, resultJaccard);
-	searcher.searchED("query", 6, resultED);
+	//searcher.searchJaccard("query", 0.2, resultJaccard);
+	searcher.searchED("query", 7, resultED);
 /*	const char* str1 = " aaaabbbbbaaaaaaa aaaaaaaaaaadddd dddda  ddddddddddsssssssss sssssssssd ";
 	const char* str2 = " aaaaaaaaaaaaaaaaaabbbbbbb bbbbbbbbbbbbbaaaaaaaaaa aaasddddddasddddddasssssssssss";
 	int a,b;

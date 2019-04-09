@@ -11,7 +11,7 @@
 using namespace std;
 const int SUCCESS = 0;
 const int FAILURE = 1;
-#define INT_MAX 0xffffff
+
 #define ulogM 1
 struct Index
 {
@@ -35,8 +35,8 @@ struct HeapEle
 
 bool SortFunc(Index a,Index b);
 bool SortFuncForHeap(HeapEle a,HeapEle b);
-unsigned GetED(const char *s1,const char *s2,int threshold,int len1,int len2);
-int GetEDVolient(const char *s1,const char *s2,int threshold,int len1,int len2);
+unsigned GetED(const char *s1,const char *s2,unsigned threshold,int len1,int len2);
+//int GetEDVolient(const char *s1,const char *s2,int threshold,int len1,int len2);
 int GetJaccard(vector<string> a,vector<string> b);
 int min(int a,int b,int c);
 int FindFirstGreater(std::vector<int> v,int comp);
