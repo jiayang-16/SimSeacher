@@ -18,6 +18,11 @@ int SimSearcher::createIndex(const char *filename, unsigned q)
 	FILE* f = fopen(filename,"r");
 	lineCount = 0;
 	minLen = 1024;
+	dataStr.clear();
+	dataStrCount.clear();
+	edIndex.clear();
+	jaccardIndex.clear();
+	strLenList.clear();
 	while(fgets(buf,1024,f) != NULL){
 		//printf("%s", buf);
 		int len = strlen(buf)-1;
@@ -296,7 +301,7 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 		else{
 			int p = shortT-1-popCount;
 			//printf("not enough p:%d\n",p);
-			for(int i = 0;i < p;i++){
+			for(int i = 0;!heap.empty()&&i < p;i++){
 				pop_heap(heap.begin(),heap.end(),SortFuncForHeap);
 				popedList.push_back((heap.back()).index);
 				heap.pop_back();
@@ -311,10 +316,11 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 			for(i = popedList.begin();i != popedList.end();i++){
 				int loc = FindFirstGreater(edIndex[sortedList[*i].name],top.ele);
 				//cout<<loc<<" ";
-				if(loc > 0)
+				if(loc > 0){
 					pList[*i] = loc;
-				heap.push_back(HeapEle((*i),(edIndex[sortedList[*i].name])[pList[*i]]));
-				push_heap(heap.begin(),heap.end(),SortFuncForHeap);
+					heap.push_back(HeapEle((*i),(edIndex[sortedList[*i].name])[pList[*i]]));				
+					push_heap(heap.begin(),heap.end(),SortFuncForHeap);
+				}
 				pList[*i]++;
 			}
 			//cout<<endl;			
@@ -424,39 +430,7 @@ int GetED(const char *s1,const char *s2,int threshold,int len1,int len2){
 	}
     return d[len1][len2];
 }
-int GetEDVolient(const char *s1,const char *s2,int threshold,int len1,int len2){
-	if(len2-len1 > threshold) return threshold+1;//impossible
-	int** d=new int*[len1+1];
-	int i,j;
-   	for(int k=0;k<=len1;k++)  
-        d[k]=new int[len2+1];
-    for(i = 0;i <= len1;i++)     
-        d[i][0] = i;     
-    for(j = 0;j <= len2;j++)     
-        d[0][j] = j;
-    //printf("test\n");
-	for(i = 1;i <= len1;i++){
-        for(j = 1;j <= len2;j++)  
-        {   
-            int cost = s1[i-1] == s2[j-1] ? 0 : 1;     
-            int deletion = d[i-1][j] + 1;     
-            int insertion = d[i][j-1] + 1;     
-            int substitution = d[i-1][j-1] + cost;     
-            d[i][j] = min(deletion,insertion,substitution);     
-        }
-	}
-	for(i = 0;i <= len1;i++){
-		for(j = 0;j <= len2;j++){
-			cout<<d[i][j]<<" ";
-		}
-		cout<<endl;		
-	}
-    int result = d[len1][len2];
-    for(int k=0;i<=len1;k++)  
-        delete[] d[k];
-    delete[] d;
-    return result;
-}
+
 int GetJaccard(vector<string> a,vector<string> b){
 
 }
