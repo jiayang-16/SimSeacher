@@ -257,13 +257,14 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 		//cout<<index<<endl;
 		heap.push_back(HeapEle(index,(edIndex[sortedList[index].name])[0]));
 	}
+	std::vector<int> popedList;
+	popedList.reserve(sortedList.size());
 	make_heap(heap.begin(),heap.end(),SortFuncForHeap);
 	while(!heap.empty()){
 		int popCount = 0;
 		int popEle = (heap[0]).ele;
 		//printf("heap top %d\n", popEle);
-		std::vector<int> popedList;
-		popedList.reserve(sortedList.size());
+		popedList.clear();
 /*		for(int i = 0;i < sortedList.size();i++){
 			cout<<pList[i]<<" ";
 		}
@@ -301,6 +302,10 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 				popedList.push_back((heap.back()).index);
 				heap.pop_back();
 			}
+			if (heap.empty())
+			{
+				break;
+			}
 			HeapEle top = heap[0];
 			vector<int>::iterator i;
 			//cout<<"find:compare to "<<top.ele<<" ";
@@ -316,31 +321,32 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 			//cout<<endl;			
 		}
 	}
-	if(!candidate.empty()){
-/*		for(int i = 0;i < candidate.size();i++){
-			cout<<candidate[i].first<<" "<<candidate[i].second<<endl;
-		}*/
-	}
+
 	vector<pair<int,int>>::iterator candIter;
+	vector<int> finalCandidate;
+	finalCandidate.reserve(64);
 	for(candIter = candidate.begin();candIter != candidate.end();candIter++){
 		for(int j = 0;j < longLen;j++){
 			if(binarySearch(edIndex[sortedList[j].name],(*candIter).first)){
 				(*candIter).second += 1;
+				if((*candIter).second >= T){
+					finalCandidate.push_back((*candIter).first);
+					break;
+				}
 			}
 		}
 	}
-	for(candIter = candidate.begin();candIter != candidate.end();candIter++){
-		if((*candIter).second >= T){
-			int dataLen = dataStr[(*candIter).first].size();
-			if(dataLen <= len)
-				edResult = GetED(dataStr[(*candIter).first].c_str(),query,threshold,dataLen,len);
-			else{
-				edResult = GetED(query,dataStr[(*candIter).first].c_str(),threshold,len,dataLen);
-			}
-			if(edResult <= threshold){//scan result
-				//cout<<(*candIter).first<<","<<edResult<<endl;
-				result.push_back(pair<unsigned,unsigned>((*candIter).first,edResult));
-			}
+	vector<int>::iterator finalIte;
+	for(finalIte = finalCandidate.begin();finalIte != finalCandidate.end();finalIte++){
+		int dataLen = dataStr[(*finalIte)].size();
+		if(dataLen <= len)
+			edResult = GetED(dataStr[(*finalIte)].c_str(),query,threshold,dataLen,len);
+		else{
+			edResult = GetED(query,dataStr[(*finalIte)].c_str(),threshold,len,dataLen);
+		}
+		if(edResult <= threshold){//scan result
+			//cout<<(*finalIte).first<<","<<edResult<<endl;
+			result.push_back(pair<unsigned,unsigned>((*finalIte),edResult));
 		}
 	}
 	return SUCCESS;
@@ -393,57 +399,65 @@ bool SortFuncForHeap(HeapEle a,HeapEle b){
 	return (a.ele > b.ele);
 }
 
+int mAbs(int a){
+	return a>0?a:-a;
+}
 int GetED(const char *s1,const char *s2,int threshold,int len1,int len2){
 	if(len2-len1 > threshold) return threshold+1;//impossible
-	int** d=new int*[len1+1];
-	int i,j;
-   	for(int k=0;k<=len1;k++)  
-        d[k]=new int[len2+1];
+	int d[len1+1][len2+1];
+    int i,j;
     for(i = 0;i <= threshold && i <= len1;i++)     
         d[i][0] = i;     
     for(j = 0;j <= threshold && j <= len2;j++)     
         d[0][j] = j;
     //printf("test\n");
 	for(i = 1;i <= len1;i++){
-		j = i-threshold-1;
-		if(j > 0){
-			int cost = s1[i-1] == s2[j-1]?0:1;
-			int deletion = d[i-1][j]+1;
-			int substitution = d[i-1][j-1]+cost;
-			d[i][j] = deletion<substitution?deletion:substitution;     
-		}
-        for(j = i-threshold+1;j < i+threshold;j++)  
+		int begin = i-threshold>1 ? i-threshold : 1;
+		int end = i+threshold<len2 ? i+threshold : len2;
+        for(j = begin;j <= end;j++)  
+        {  
+            int cost = s1[i-1] == s2[j-1] ? 0 : 1;     
+            int deletion = mAbs(i-1-j)>threshold?INT_MAX:d[i-1][j] + 1;     
+            int insertion = mAbs(i-j+1)>threshold?INT_MAX:d[i][j-1] + 1;
+            int substitution = d[i-1][j-1] + cost;     
+            d[i][j] = min(deletion,insertion,substitution);     
+        }
+	}
+    return d[len1][len2];
+}
+int GetEDVolient(const char *s1,const char *s2,int threshold,int len1,int len2){
+	if(len2-len1 > threshold) return threshold+1;//impossible
+	int** d=new int*[len1+1];
+	int i,j;
+   	for(int k=0;k<=len1;k++)  
+        d[k]=new int[len2+1];
+    for(i = 0;i <= len1;i++)     
+        d[i][0] = i;     
+    for(j = 0;j <= len2;j++)     
+        d[0][j] = j;
+    //printf("test\n");
+	for(i = 1;i <= len1;i++){
+        for(j = 1;j <= len2;j++)  
         {   
-        	if(j <= 0) continue;
-        	if(j > len2) break;  
             int cost = s1[i-1] == s2[j-1] ? 0 : 1;     
             int deletion = d[i-1][j] + 1;     
             int insertion = d[i][j-1] + 1;     
             int substitution = d[i-1][j-1] + cost;     
             d[i][j] = min(deletion,insertion,substitution);     
         }
-        j = i+threshold;
-        if(j <= len2){
-        	int cost = s1[i-1] == s2[j-1]?0:1;
-        	int insertion = d[i][j-1]+1;
-        	int substitution = d[i-1][j-1] + cost; 
-        	d[i][j] = insertion<substitution?insertion:substitution; 
-        }
 	}
-/*	for(i = 0;i <= len1;i++){
+	for(i = 0;i <= len1;i++){
 		for(j = 0;j <= len2;j++){
 			cout<<d[i][j]<<" ";
 		}
 		cout<<endl;		
-	}*/
-
+	}
     int result = d[len1][len2];
     for(int k=0;i<=len1;k++)  
         delete[] d[k];
     delete[] d;
     return result;
 }
-
 int GetJaccard(vector<string> a,vector<string> b){
 
 }
