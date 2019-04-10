@@ -63,6 +63,12 @@ public:
 	std::vector<int> strLenList;
 	vector<Index> edSortedList;
 	vector<Index> jaccardSortedList;
+	std::vector<HeapEle> heap;
+	std::vector<string> queryList;
+	std::vector<Index> sortedList;
+	std::vector<pair<int,int>> candidate;
+	std::vector<int> popedList;
+	std::vector<int> pList;//current index when mergeskiping
 };
 
 

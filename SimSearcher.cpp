@@ -6,6 +6,9 @@ const int M_MAX_INT = 0xffffff;
 const double u = 0.0085;
 SimSearcher::SimSearcher()
 {
+	heap.reserve(1024);
+	queryList.reserve(1024);
+	candidate.reserve(128);
 }
 
 SimSearcher::~SimSearcher()
@@ -210,14 +213,14 @@ int SimSearcher::searchJaccard(const char *query, double threshold, vector<pair<
 int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<unsigned, unsigned> > &result)
 {
 	result.clear();
-	std::vector<string> queryList;
-	//cout<<"threshold"<<threshold<<endl;
-	queryList.reserve(1024);
+	
+	//cout<<"threshold"<<threshold<<endl;	
+	queryList.clear();
+	sortedList.clear();
 	int len = strlen(query);
 	string queryStr(query);
-	std::vector<Index> sortedList;
+	
 	int qgramCount = len-qgram_length+1;
-	sortedList.reserve(qgramCount);
 	for(int i = 0;i < qgramCount;i++){
 		string str = queryStr.substr(i,qgram_length);
 		queryList.push_back(str);		
@@ -251,25 +254,22 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 		return SUCCESS;
 	}
 	//scan/merge 
-	std::vector<pair<int,int>> candidate;
-	candidate.reserve(128);
+	candidate.clear();
 	//std::vector<pair<int,int>> finalCandidate;
 	sort(sortedList.begin(),sortedList.end(),SortFunc);
 	//printEdSortedList(sortedList);
-	std::vector<int> pList;//current index when mergeskiping
-	pList.reserve(sortedList.size());
+	pList.clear();
 	for(int i = 0;i < sortedList.size();i++){
 		pList.push_back(1);
 	}
-	std::vector<HeapEle> heap;
-	heap.reserve(1024);
+
+	heap.clear();
 	for(int i = 0;i < shortLen;i++){
 		int index = i+longLen;
 		//cout<<index<<endl;
 		heap.push_back(HeapEle(index,(edIndex[sortedList[index].name])[0]));
 	}
-	std::vector<int> popedList;
-	popedList.reserve(sortedList.size());
+	//popedList.clear();
 	make_heap(heap.begin(),heap.end(),SortFuncForHeap);
 	while(!heap.empty()){
 		int popCount = 0;
@@ -355,12 +355,8 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 	}
 	vector<int>::iterator finalIte;
 	for(finalIte = finalCandidate.begin();finalIte != finalCandidate.end();finalIte++){
-		int dataLen = dataStr[(*finalIte)].size();
-		if(dataLen <= len)
-			edResult = GetED(dataStr[(*finalIte)].c_str(),query,threshold,dataLen,len);
-		else{
-			edResult = GetED(query,dataStr[(*finalIte)].c_str(),threshold,len,dataLen);
-		}
+		
+		edResult = GetED(query,dataStr[(*finalIte)].c_str(),threshold,len,dataStr[(*finalIte)].length());
 		//cout<<"threshold"<<threshold<<endl;
 		if(edResult <= threshold){//scan result
 			//cout<<(*finalIte)<<","<<edResult<<endl;
