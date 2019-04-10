@@ -4,11 +4,23 @@
 using namespace std;
 const int M_MAX_INT = 0xffffff;
 const double u = 0.0085;
+int dp[1025][1025];
 SimSearcher::SimSearcher()
 {
-	heap.reserve(1024);
-	queryList.reserve(1024);
-	candidate.reserve(128);
+	heap.reserve(102400);
+	queryList.reserve(102400);
+	candidate.reserve(102400);
+	popedList.reserve(102400);
+	pList.reserve(102400);
+	finalCandidate.reserve(102400);
+    for (int i = 0; i <= 1024; i++)
+    {
+        dp[i][0] = i;
+    }
+    for (int j = 0; j <= 1024; j++)
+    {
+        dp[0][j] = j;
+    }
 }
 
 SimSearcher::~SimSearcher()
@@ -68,7 +80,7 @@ int SimSearcher::createIndex(const char *filename, unsigned q)
 		lineCount ++;		
 	}
 	//printIndex(jaccardIndex);
-	map<string,vector<int>>::iterator ite;
+	unordered_map<string,vector<int>>::iterator ite;
 	for(ite = edIndex.begin();ite!=edIndex.end();ite++){
 		edSortedList.push_back(Index(ite->first,(ite->second).size()));
 	}
@@ -101,7 +113,7 @@ int SimSearcher::searchJaccard(const char *query, double threshold, vector<pair<
 		}
 	}
 	for(set<string>::iterator i = queryList.begin();i != queryList.end();i++){
-		map<string,vector<int>>::iterator ite = jaccardIndex.find(*i);
+		unordered_map<string,vector<int>>::iterator ite = jaccardIndex.find(*i);
 		if(ite != jaccardIndex.end())
 			sortedList.push_back(Index(*i,(ite->second).size()));
 	}
@@ -152,7 +164,7 @@ int SimSearcher::searchJaccard(const char *query, double threshold, vector<pair<
 		}
 		if(popCount >= shortT){
 			//printf("get result %d popCount %d\n", popEle,popCount);
-			candidate.push_back(pair<int,int>(popEle,popCount));
+			candidate.push_back(make_pair(popEle,popCount));
 			vector<int>::iterator i;
 			for(i = popedList.begin();i != popedList.end();i++){
 				if(pList[*i]<sortedList[(*i)].length){//list have sth to pop
@@ -224,13 +236,12 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 	for(int i = 0;i < qgramCount;i++){
 		string str = queryStr.substr(i,qgram_length);
 		queryList.push_back(str);		
-		map<string,vector<int>>::iterator ite = edIndex.find(str);
+		unordered_map<string,vector<int>>::iterator ite = edIndex.find(str);
 		if(ite != edIndex.end()){
 			sortedList.push_back(Index(str,(ite->second).size()));			
 		}
 	}
-	int bias = -qgram_length+1-threshold*qgram_length;
-	int T = strlen(query)+bias;
+	int T = len-qgram_length+1-threshold*qgram_length;
 	//T = 7;//test
 	unsigned edResult;
 	int longLen = T/(u*log10(double(maxLen))+1);
@@ -238,14 +249,9 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 	//longLen = 5;//test
 	int shortLen = sortedList.size()-longLen;
 	int shortT = T-longLen;//candidate must appear more than that
-	if(T <= 0 || shortLen <= 0 || len <= qgram_length){//scan all
+	if(T <= 0 || shortLen <= 0 || len <= qgram_length || len<= 5){//scan all
 		for(int i = 0;i < lineCount;i++){
-			int dataLen = dataStr[i].size();
-			if(dataLen <= len)
-				edResult = GetED(dataStr[i].c_str(),query,threshold,dataLen,len);
-			else{
-				edResult = GetED(query,dataStr[i].c_str(),threshold,len,dataLen);
-			}
+			edResult = GetED(query,dataStr[i].c_str(),threshold,len,dataStr[i].size());
 			if(edResult <= threshold){//scan result
 				//cout<<i<<","<<edResult<<endl;
 				result.push_back(pair<unsigned,unsigned>(i,edResult));
@@ -285,19 +291,17 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 			cout<<heap[i].ele<<" ";
 		}
 		cout<<endl;*/
-		while(heap[0].ele == popEle){
+		while(!heap.empty() && heap[0].ele == popEle){
 			pop_heap(heap.begin(),heap.end(),SortFuncForHeap);
 			popedList.push_back((heap.back()).index);
 			heap.pop_back();
 			popCount++;
-			if(heap.empty()) break;
 			//printf("pop\n");
 		}
 		if(popCount >= shortT){
 			//printf("get result %d popCount %d\n", popEle,popCount);
-			candidate.push_back(pair<int,int>(popEle,popCount));
-			vector<int>::iterator i;
-			for(i = popedList.begin();i != popedList.end();i++){
+			candidate.push_back(make_pair(popEle,popCount));
+			for(vector<int>::iterator i = popedList.begin();i != popedList.end();i++){
 				if(pList[*i]<sortedList[(*i)].length){//list have sth to pop
 					heap.push_back(HeapEle((*i),(edIndex[sortedList[*i].name])[pList[*i]]));
 					push_heap(heap.begin(),heap.end(),SortFuncForHeap);
@@ -318,9 +322,8 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 				break;
 			}
 			HeapEle top = heap[0];
-			vector<int>::iterator i;
 			//cout<<"find:compare to "<<top.ele<<" ";
-			for(i = popedList.begin();i != popedList.end();i++){
+			for(vector<int>::iterator i = popedList.begin();i != popedList.end();i++){
 				vector<int> &cList = edIndex[sortedList[*i].name];
 				vector<int>::iterator loc = lower_bound(cList.begin(),cList.end(),top.ele);
 				//cout<<loc<<" ";
@@ -333,11 +336,9 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 			//cout<<endl;			
 		}
 	}
+	finalCandidate.clear();
 
-	vector<pair<int,int>>::iterator candIter;
-	vector<int> finalCandidate;
-	finalCandidate.reserve(64);
-	for(candIter = candidate.begin();candIter != candidate.end();candIter++){
+	for(vector<pair<int,int>>::iterator candIter = candidate.begin();candIter != candidate.end();candIter++){
 		if((*candIter).second >= T){
 			finalCandidate.push_back((*candIter).first);
 			continue;		
@@ -353,8 +354,7 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 			}
 		}
 	}
-	vector<int>::iterator finalIte;
-	for(finalIte = finalCandidate.begin();finalIte != finalCandidate.end();finalIte++){
+	for(vector<int>::iterator finalIte = finalCandidate.begin();finalIte != finalCandidate.end();finalIte++){
 		
 		edResult = GetED(query,dataStr[(*finalIte)].c_str(),threshold,len,dataStr[(*finalIte)].length());
 		//cout<<"threshold"<<threshold<<endl;
@@ -366,8 +366,8 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 	return SUCCESS;
 }
 
-void SimSearcher::printIndex(map<string,vector<int>> mMap){
-	map<string,vector<int>>::iterator i;
+void SimSearcher::printIndex(unordered_map<string,vector<int>> mMap){
+	unordered_map<string,vector<int>>::iterator i;
 	for(i = mMap.begin();i!=mMap.end();i++){
 		cout<<"key:"<<i->first<<" "<<"list:";
 		for(int j = 0;j < (i->second).size();j++){
@@ -405,11 +405,11 @@ void SimSearcher::printJaccardSortedList(std::vector<Index> sortedList){
 	}
 }
 
-bool SortFunc(Index a,Index b){
+inline bool SortFunc(const Index& a,const Index& b){
 	return (a.length > b.length);
 }
 
-bool SortFuncForHeap(HeapEle a,HeapEle b){
+inline bool SortFuncForHeap(const HeapEle& a,const HeapEle& b){
 	return (a.ele > b.ele);
 }
 
@@ -426,19 +426,10 @@ inline int min_3(int x, int y, int z)
 {
     return min(min(x, y), z);
 }
-unsigned GetED(const char *str1,const char *str2,unsigned threshold,int m,int n){
+inline unsigned GetED(const char *str1,const char *str2,unsigned threshold,int m,int n){
 	//cout<<s1<<s2<<threshold<<len1<<len2<<endl;
     if (mAbs(m - n) > threshold)
         return M_MAX_INT;
-    int dp[m+1][n+1];
-    for (int i = 0; i <= min(threshold, m); i++)
-    {
-        dp[i][0] = i;
-    }
-    for (int j = 0; j <= min(threshold, n); j++)
-    {
-        dp[0][j] = j;
-    }
     for (int i = 1; i <= m; i++)
     {
         int begin = max(i - threshold, 1);
