@@ -8,11 +8,11 @@ int main(int argc, char **argv)
 
 	vector<pair<unsigned, unsigned> > resultED;
 	vector<pair<unsigned, double> > resultJaccard;
-	int q = 1;
+	int q = 2;
 
 	searcher.createIndex(argv[1], q);
 	//searcher.searchJaccard("query", 0.2, resultJaccard);
-	searcher.searchED("abcdefghijkl", 6, resultED);
+	searcher.searchED("abcdefghijkabcdefghijk", 6, resultED);
 /*	const char* str1 = " aaaabbbbbaaaaaaa aaaaaaaaaaadddd dddda  ddddddddddsssssssss sssssssssd ";
 	const char* str2 = " aaaaaaaaaaaaaaaaaabbbbbbb bbbbbbbbbbbbbaaaaaaaaaa aaasddddddasddddddasssssssssss";
 	int a,b;

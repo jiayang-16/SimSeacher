@@ -47,6 +47,7 @@ public:
 	SimSearcher();
 	~SimSearcher();
 	int minLen;//jaccard string with shortest length
+	int maxLen;
 	int lineCount;
 	int qgram_length;
 	std::vector<string> dataStr;
@@ -60,8 +61,8 @@ public:
 	map<string,vector<int>> edIndex;
 	map<string,vector<int>> jaccardIndex;
 	std::vector<int> strLenList;
-	//vector<Index> edSortedList;
-	//vector<Index> jaccardSortedList;
+	vector<Index> edSortedList;
+	vector<Index> jaccardSortedList;
 };
 
 

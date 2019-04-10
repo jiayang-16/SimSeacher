@@ -3,6 +3,7 @@
 
 using namespace std;
 const int M_MAX_INT = 0xffffff;
+const double u = 0.0085;
 SimSearcher::SimSearcher()
 {
 }
@@ -18,6 +19,7 @@ int SimSearcher::createIndex(const char *filename, unsigned q)
 	FILE* f = fopen(filename,"r");
 	lineCount = 0;
 	minLen = 1024;
+	maxLen = 0;
 	dataStr.clear();
 	dataStrCount.clear();
 	edIndex.clear();
@@ -63,7 +65,7 @@ int SimSearcher::createIndex(const char *filename, unsigned q)
 		lineCount ++;		
 	}
 	//printIndex(jaccardIndex);
-/*	map<string,vector<int>>::iterator ite;
+	map<string,vector<int>>::iterator ite;
 	for(ite = edIndex.begin();ite!=edIndex.end();ite++){
 		edSortedList.push_back(Index(ite->first,(ite->second).size()));
 	}
@@ -71,7 +73,8 @@ int SimSearcher::createIndex(const char *filename, unsigned q)
 		jaccardSortedList.push_back(Index(ite->first,(ite->second).size()));
 	}
 	sort(edSortedList.begin(),edSortedList.end(),SortFunc);
-	sort(jaccardSortedList.begin(),jaccardSortedList.end(),SortFunc);*/
+	sort(jaccardSortedList.begin(),jaccardSortedList.end(),SortFunc);
+	maxLen = edSortedList[0].length;
 	//printIndex(edIndex);
 /*	for(int i = 0;i < edSortedList.size();i++){
 		cout<<edIndex[edSortedList[i].name].size()<<endl;
@@ -208,6 +211,7 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 {
 	result.clear();
 	std::vector<string> queryList;
+	//cout<<"threshold"<<threshold<<endl;
 	queryList.reserve(1024);
 	int len = strlen(query);
 	string queryStr(query);
@@ -226,8 +230,8 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 	int T = strlen(query)+bias;
 	//T = 7;//test
 	unsigned edResult;
-	int longLen = T/(ulogM+1);
-	//cout<<longLen<<" "<<T<<endl;
+	int longLen = T/(u*log10(double(maxLen))+1);
+	//cout<<query<<longLen<<" "<<T<<endl;
 	//longLen = 5;//test
 	int shortLen = sortedList.size()-longLen;
 	int shortT = T-longLen;//candidate must appear more than that
@@ -317,14 +321,14 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 			vector<int>::iterator i;
 			//cout<<"find:compare to "<<top.ele<<" ";
 			for(i = popedList.begin();i != popedList.end();i++){
-				int loc = FindFirstGreater(edIndex[sortedList[*i].name],top.ele);
+				vector<int> &cList = edIndex[sortedList[*i].name];
+				vector<int>::iterator loc = lower_bound(cList.begin(),cList.end(),top.ele);
 				//cout<<loc<<" ";
-				if(loc > 0){
-					pList[*i] = loc;
-					heap.push_back(HeapEle((*i),(edIndex[sortedList[*i].name])[pList[*i]]));				
+				if(loc != cList.end()){
+					heap.push_back(HeapEle(*i,*loc));				
 					push_heap(heap.begin(),heap.end(),SortFuncForHeap);
 				}
-				pList[*i]++;
+				pList[*i] = loc-cList.begin()+1;
 			}
 			//cout<<endl;			
 		}
@@ -341,6 +345,7 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 		for(int j = 0;j < longLen;j++){
 			if(binary_search(edIndex[sortedList[j].name].begin(),edIndex[sortedList[j].name].end(),(*candIter).first)){
 				(*candIter).second += 1;
+				//cout<<(*candIter).second<<endl;
 				if((*candIter).second >= T){
 					finalCandidate.push_back((*candIter).first);
 					break;
@@ -356,6 +361,7 @@ int SimSearcher::searchED(const char *query, unsigned threshold, vector<pair<uns
 		else{
 			edResult = GetED(query,dataStr[(*finalIte)].c_str(),threshold,len,dataLen);
 		}
+		//cout<<"threshold"<<threshold<<endl;
 		if(edResult <= threshold){//scan result
 			//cout<<(*finalIte)<<","<<edResult<<endl;
 			result.push_back(pair<unsigned,unsigned>((*finalIte),edResult));
@@ -454,6 +460,7 @@ unsigned GetED(const char *str1,const char *str2,unsigned threshold,int m,int n)
                 dp[i - 1][j - 1] + t);
         }
     }
+    //cout<<dp[m][n]<<endl;
     return dp[m][n];
 }
 
